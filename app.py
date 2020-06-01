@@ -1,7 +1,7 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Table, Column, Integer, ForeignKey
-
+from passlib.apps import custom_app_context as pwd_context
 from flask_migrate import Migrate
 
 from sqlalchemy.orm import relationship
@@ -20,12 +20,13 @@ migrate = Migrate(app, db)
 selected_answers = Table('selected_answers', db.metadata, Column('user_id', Integer, ForeignKey('users.id')),
                          Column('answer_id', Integer, ForeignKey('answers.id')))
 
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(32))
     email = db.Column(db.String(32))
-    password = db.Column(db.String(32))
+    password = db.Column(db.String(128))
     surveys = relationship("Survey")
     questions = relationship("Question")
     selected_answers = relationship("Answer", secondary=selected_answers)
@@ -72,12 +73,25 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/db_test')
-def hello_world2():
-    new_user = User(name='username', email='patosticco@gmail.com', password='123')
-    db.session.add(new_user)
+@app.route('/api/users', methods=['POST'])
+def new_user():
+    name = request.form.get('username')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    if name is None or email is None or password is None:
+        response = jsonify("Missing arguments.")
+        response.status_code = 400
+        return response
+    if User.query.filter_by(email=email).first() is not None:
+        response = jsonify("Email is invalid or already taken.")
+        response.status_code = 400
+        return response
+    hashed_password = pwd_context.encrypt(password)
+    user = User(name, email, hashed_password)
+    db.session.add(user)
     db.session.commit()
-    return 'ok'
+    response = jsonify("User correctly created.")
+    return response
 
 
 if __name__ == '__main__':
