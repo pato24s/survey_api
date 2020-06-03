@@ -80,6 +80,16 @@ def hello_world():
     return 'Hello World!'
 
 
+@app.route('/api/users/<user_id>/questions', methods=['GET'])
+def get_questions_from_user(user_id):
+    user = User.query.get(user_id)
+    questions = user.questions
+    response = {}
+    for question in questions:
+        response[question.id] = question.text
+    return jsonify(response)
+
+
 @app.route('/api/users', methods=['POST'])
 def new_user():
     name = request.form.get('username')
@@ -98,6 +108,33 @@ def new_user():
     persist_entity(user)
     response = jsonify("User correctly created.")
     return response
+
+
+@app.route('/api/surveys', methods=['GET'])
+def get_all_surveys():
+    surveys = Survey.query.all()
+    response = []
+    for survey in surveys:
+        questions_data = []
+        for question in survey.questions:
+            answers_data = []
+            for answer in question.answers:
+                answer_data = {
+                    answer.id: answer.text
+                }
+                answers_data.append(answer_data)
+            question_data = {
+                'title': question.text,
+                'answers': answers_data
+            }
+            questions_data.append(question_data)
+        survey_data = {
+            'survey_id': survey.id,
+            'tags': survey.tags,
+            'questions': questions_data
+        }
+        response.append(survey_data)
+    return jsonify(response)
 
 
 @app.route('/api/surveys', methods=['POST'])
@@ -150,6 +187,8 @@ def add_question(survey_id):
     if answer_4 is not None:
         create_answer_for(answer_4, question)
     return "Question and answers submitted correctly"
+
+
 
 
 def create_answer_for(answer_1, question):
