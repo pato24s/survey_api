@@ -31,7 +31,7 @@ class User(db.Model):
     email = db.Column(db.String(32))
     password = db.Column(db.String(128))
     surveys = relationship("Survey", backref='creator')
-    questions = relationship("Question")
+    questions = relationship("Question", backref='creator')
     selected_answers = relationship("Answer", secondary=selected_answers)
 
     def __init__(self, name, email, password):
@@ -46,7 +46,7 @@ class Survey(db.Model):
     tags = db.Column(db.String(128))
     title = db.Column(db.String(128))
     expiration_date = db.Column(db.DateTime)
-    questions = relationship("Question")
+    questions = relationship("Question", backref='survey')
     creator_id = Column(Integer, ForeignKey('users.id'))
 
 
@@ -54,7 +54,7 @@ class Question(db.Model):
     __tablename__ = 'questions'
     id = db.Column(db.Integer, primary_key=True)
     text = db.Column(db.String(128))
-    answers = relationship("Answer")
+    answers = relationship("Answer", backref='question')
     survey_id = Column(Integer, ForeignKey('surveys.id'))
     creator_id = Column(Integer, ForeignKey('users.id'))
 
@@ -95,8 +95,7 @@ def new_user():
         return response
     hashed_password = pwd_context.encrypt(password)
     user = User(name, email, hashed_password)
-    db.session.add(user)
-    db.session.commit()
+    persist_entity(user)
     response = jsonify("User correctly created.")
     return response
 
@@ -116,11 +115,51 @@ def new_survey():
     email = request.authorization.username
     creator = User.query.filter_by(email=email).first()
     survey = Survey(tags=tags, title=title, expiration_date=expiration_date, creator=creator)
-    db.session.add(survey)
-    db.session.commit()
+    persist_entity(survey)
     response = jsonify("Survey correctly created.")
     return response
 
+
+@app.route('/api/surveys/<survey_id>/questions', methods=['POST'])
+@auth.login_required
+def add_question(survey_id):
+    question_title = request.form.get('question_title')
+    answer_1 = request.form.get('answer_1')
+    answer_2 = request.form.get('answer_2')
+    answer_3 = request.form.get('answer_3')
+    answer_4 = request.form.get('answer_4')
+    if answer_1 is None and answer_2 is None and answer_3 is None and answer_4 is None:
+        response = jsonify("Cant add question without answers.")
+        response.status_code = 400
+        return response
+    if len(request.form) > 5:
+        response = jsonify("Cant create question with more than four answers.")
+        response.status_code = 400
+        return response
+    email = request.authorization.username
+    creator = User.query.filter_by(email=email).first()
+    survey = Survey.query.get(survey_id)
+    question = Question(text=question_title, survey=survey, creator=creator)
+    persist_entity(question)
+    if answer_1 is not None:
+        create_answer_for(answer_1, question)
+    if answer_2 is not None:
+        create_answer_for(answer_2, question)
+    if answer_3 is not None:
+        create_answer_for(answer_3, question)
+    if answer_4 is not None:
+        create_answer_for(answer_4, question)
+    return "Question and answers submitted correctly"
+
+
+def create_answer_for(answer_1, question):
+    answer = Answer(text=answer_1, question=question)
+    persist_entity(answer)
+
+
+def persist_entity(entity):
+    db.session.add(entity)
+    db.session.commit()
 
 if __name__ == '__main__':
     app.run()
