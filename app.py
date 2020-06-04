@@ -21,8 +21,12 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 auth = HTTPBasicAuth()
 
-selected_answers = Table('selected_answers', db.metadata, Column('question_id', Integer, ForeignKey('questions.id')),
-                         Column('answer_id', Integer, ForeignKey('answers.id')))
+
+class SelectedAnswer(db.Model):
+    __tablename__ = 'selected_answers'
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = Column(Integer, ForeignKey('questions.id'))
+    answer_id = Column(Integer, ForeignKey('answers.id'))
 
 
 class User(db.Model):
@@ -57,7 +61,7 @@ class Question(db.Model):
     answers = relationship("Answer", backref='question')
     survey_id = Column(Integer, ForeignKey('surveys.id'))
     creator_id = Column(Integer, ForeignKey('users.id'))
-    selected_answers = relationship("Answer", secondary=selected_answers)
+    selected_answers = relationship("Answer", secondary='selected_answers')
 
 
 class Answer(db.Model):
@@ -75,6 +79,7 @@ def verify_password(email, password):
     if not pwd_context.verify(password, user.password):
         return False
     return True
+
 
 @app.route('/')
 def hello_world():
@@ -126,12 +131,14 @@ def get_all_surveys():
                 answers_data.append(answer_data)
             question_data = {
                 'title': question.text,
-                'answers': answers_data
+                'answers': answers_data,
+                'id': question.id
             }
             questions_data.append(question_data)
         survey_data = {
             'survey_id': survey.id,
             'tags': survey.tags,
+            'title': survey.title,
             'questions': questions_data
         }
         response.append(survey_data)
@@ -187,7 +194,7 @@ def add_question(survey_id):
         create_answer_for(answer_3, question)
     if answer_4 is not None:
         create_answer_for(answer_4, question)
-    return "Question and answers submitted correctly"
+    return jsonify("Question and answers submitted correctly.")
 
 
 @app.route('/api/surveys/<survey_id>/submit_response', methods=['POST'])
@@ -196,11 +203,38 @@ def submit_answer_for(survey_id):
     answers_data_list = ast.literal_eval(answers_data)
     for answer_data in answers_data_list:
         question_id = answer_data[0]
-        question = Question.query.get(question_id)
         answer_id = answer_data[1]
-        answer = Answer.query.get(answer_id)
-        question.selected_answers.append(answer)
-        db.session.commit()
+        selected_answer = SelectedAnswer(question_id=question_id, answer_id=answer_id)
+        persist_entity(selected_answer)
+    return jsonify("Survey completed correctly")
+
+
+@app.route('/api/surveys/<survey_id>/results', methods=['GET'])
+def get_results_for(survey_id):
+    survey = Survey.query.get(survey_id)
+    questions = survey.questions
+    questions_data = {
+        'survey title': survey.tags,
+        'questions results': []
+    }
+    for question in questions:
+        question_data = {
+            'question title': question.text
+        }
+        question_id = question.id
+        answers = question.answers
+        answers_data = {}
+        total_answers = SelectedAnswer.query.filter_by(question_id=question_id).count()
+        if total_answers is 0:
+            break
+        for answer in answers:
+            answer_id = answer.id
+            number_of_answers = SelectedAnswer.query.filter_by(question_id=question_id, answer_id=answer_id).count()
+            answers_data[answer.text] = round((number_of_answers / total_answers) * 100, 2)
+        question_data['results'] = answers_data
+        questions_data['questions results'].append(question_data)
+    return jsonify(questions_data)
+
 
 def create_answer_for(answer_1, question):
     answer = Answer(text=answer_1, question=question)
@@ -210,6 +244,7 @@ def create_answer_for(answer_1, question):
 def persist_entity(entity):
     db.session.add(entity)
     db.session.commit()
+
 
 if __name__ == '__main__':
     app.run()
