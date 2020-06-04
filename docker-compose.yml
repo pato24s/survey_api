@@ -1,0 +1,23 @@
+version: '2'
+services:
+  db:
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: surveys_api
+    image: postgres:latest
+    ports:
+    - 5405:5432
+
+  web:
+    build: .
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+    environment:
+      STAGE: production
+      SQLALCHEMY_DATABASE_URI: postgresql://postgres:admin@db/surveys_api
