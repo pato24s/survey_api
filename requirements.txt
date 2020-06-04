@@ -1,0 +1,6 @@
+flask
+flask_sqlalchemy
+Flask-HTTPAuth
+sqlalchemy
+passlib
+flask_migrate
