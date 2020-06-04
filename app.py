@@ -6,6 +6,7 @@ from flask_httpauth import HTTPBasicAuth
 from sqlalchemy import Table, Column, Integer, ForeignKey
 from passlib.apps import custom_app_context as pwd_context
 from flask_migrate import Migrate
+import ast
 
 from sqlalchemy.orm import relationship
 
@@ -20,7 +21,7 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 auth = HTTPBasicAuth()
 
-selected_answers = Table('selected_answers', db.metadata, Column('user_id', Integer, ForeignKey('users.id')),
+selected_answers = Table('selected_answers', db.metadata, Column('question_id', Integer, ForeignKey('questions.id')),
                          Column('answer_id', Integer, ForeignKey('answers.id')))
 
 
@@ -32,7 +33,6 @@ class User(db.Model):
     password = db.Column(db.String(128))
     surveys = relationship("Survey", backref='creator')
     questions = relationship("Question", backref='creator')
-    selected_answers = relationship("Answer", secondary=selected_answers)
 
     def __init__(self, name, email, password):
         self.name = name
@@ -57,6 +57,7 @@ class Question(db.Model):
     answers = relationship("Answer", backref='question')
     survey_id = Column(Integer, ForeignKey('surveys.id'))
     creator_id = Column(Integer, ForeignKey('users.id'))
+    selected_answers = relationship("Answer", secondary=selected_answers)
 
 
 class Answer(db.Model):
@@ -189,7 +190,17 @@ def add_question(survey_id):
     return "Question and answers submitted correctly"
 
 
-
+@app.route('/api/surveys/<survey_id>/submit_response', methods=['POST'])
+def submit_answer_for(survey_id):
+    answers_data = request.form.get('answers_data')
+    answers_data_list = ast.literal_eval(answers_data)
+    for answer_data in answers_data_list:
+        question_id = answer_data[0]
+        question = Question.query.get(question_id)
+        answer_id = answer_data[1]
+        answer = Answer.query.get(answer_id)
+        question.selected_answers.append(answer)
+        db.session.commit()
 
 def create_answer_for(answer_1, question):
     answer = Answer(text=answer_1, question=question)
