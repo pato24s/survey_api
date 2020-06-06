@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 
 # initialization
 app = Flask(__name__)
-# app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://postgres:admin@localhost:5432/surveys_api"
+app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://postgres:admin@localhost:5432/surveys_api"
 
 # extensions
 db = SQLAlchemy(app)
@@ -77,11 +77,6 @@ def verify_password(email, password):
     if not pwd_context.verify(password, user.password):
         return False
     return True
-
-
-@app.route('/')
-def hello_world():
-    return 'Hello World!'
 
 
 @app.route('/api/users/<user_id>/questions', methods=['GET'])
